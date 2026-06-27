@@ -37,10 +37,10 @@ class MALoRADownProjLayer(nn.Module):
                 p.requires_grad = False
 
         
-        self.shared_SA = MALoRASharedSubspace(r1=r1, d_ffn=d_ffn)
+        self.shared_SA = MALoRASharedSubspace(r1, d_ffn)
 
         
-        self.router = TopKGatingRouter(d_model=d_model, n_experts=n_experts, k=1)
+        self.router = TopKGatingRouter(d_model, n_experts, k=1)
 
 
         self.experts = nn.ModuleList([ AlgoExpert(r1, r2, alpha, d_model),
