@@ -8,7 +8,8 @@ class MALoRASharedSubspace(nn.Module):
 
         super().__init__()
 
-        self.S_A = nn.Parameter(torch.empty(r1, d_ffn), requires_grad=False)
+        self.S_A = nn.Parameter(torch.empty(r1, d_ffn), requires_grad=True
+                               )
 
         nn.init.kaiming_uniform_(self.S_A, a=5**0.5)
 
