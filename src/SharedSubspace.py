@@ -8,12 +8,7 @@ class MALoRASharedSubspace(nn.Module):
 
         super().__init__()
 
-<<<<<<< HEAD:src/SharedSubspace.py
         self.S_A = nn.Parameter(torch.empty(r1, d_ffn), requires_grad=True)
-=======
-        self.S_A = nn.Parameter(torch.empty(r1, d_ffn), requires_grad=True
-                               )
->>>>>>> f04360202cbb1608f2b66cef82329180a4c57501:SharedSubspace.py
 
         nn.init.kaiming_uniform_(self.S_A, a=5**0.5)
 

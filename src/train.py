@@ -59,6 +59,7 @@ from src.dataset import get_dataloader
 from src.Layers import updating_layers
 from src.MaloraLayer import MALoRADownProjLayer
 import torch.optim as optim
+from src.model import build_model_and_tokenizer
 
 # ── Config ───────────────────────────────────────────────
 JSONL_PATHS = {
@@ -79,18 +80,13 @@ SMOKE_TEST  = True   # ← set False for full training
 SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None   # 4 samples × 3 experts = 12 total
 
 
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B")
-tokenizer.pad_token = tokenizer.eos_token   # Llama has no pad token by default
 
-model = AutoModelForCausalLM.from_pretrained(
-    "meta-llama/Llama-3.1-8B",
-    torch_dtype=torch.float32
-)
 
-model = updating_layers(model, r1, r2, alpha, n_experts, layer_range=(8, 24))
 
+
+model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24))
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model  = model.to(device)
+model = model.to(device)
 
 # ── Dataloader ───────────────────────────────────────────
 dataloader = get_dataloader(
