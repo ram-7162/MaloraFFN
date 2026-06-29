@@ -7,7 +7,7 @@ from src.Layers import updating_layers
 load_dotenv() 
 
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B")
-HF_TOKEN   = os.getenv("HF_TOKEN")  # your Hugging Face access token
+HF_TOKEN   = os.getenv("HF_TOKEN")  
 
 
 r1          = 64

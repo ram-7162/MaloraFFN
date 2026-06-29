@@ -52,16 +52,13 @@
 
 
 
-
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from src.dataset import get_dataloader
 from src.Layers import updating_layers
+from src.model import build_model_and_tokenizer
 from src.MaloraLayer import MALoRADownProjLayer
 import torch.optim as optim
-from src.model import build_model_and_tokenizer
 
-# ── Config ───────────────────────────────────────────────
 JSONL_PATHS = {
     0: 'data/expert0_algo_training.jsonl',
     1: 'data/expert1_syntax_training.jsonl',
@@ -75,34 +72,16 @@ n_experts   = 3
 BATCH_SIZE  = 4
 MAX_LENGTH  = 512
 EPOCHS      = 3
-SMOKE_TEST  = True   # ← set False for full training
+SMOKE_TEST  = True
 
-SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None   # 4 samples × 3 experts = 12 total
+SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None
 
-
-
-
-
-
-model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24))
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = model.to(device)
-
-# ── Dataloader ───────────────────────────────────────────
-dataloader = get_dataloader(
-    JSONL_PATHS,
-    tokenizer,
-    batch_size=BATCH_SIZE,
-    max_length=MAX_LENGTH,
-    samples_per_expert=SAMPLES_PER_EXPERT
-)
 
 def get_trainable_params(model):
     return [p for p in model.parameters() if p.requires_grad]
 
-optimizer = optim.AdamW(get_trainable_params(model), lr=3e-4)
 
-def train_step(model, batch):
+def train_step(model, batch, optimizer, device):
     model.train()
     optimizer.zero_grad()
 
@@ -122,27 +101,43 @@ def train_step(model, batch):
             if layer.mlp.last_auxloss is not None:
                 aux_loss = aux_loss + layer.mlp.last_auxloss
 
-    total_loss = task_loss + 0.01 * aux_loss   # aux weight = 0.01
+    total_loss = task_loss + 0.01 * aux_loss
 
     total_loss.backward()
     optimizer.step()
 
     return task_loss.item(), aux_loss.item()
 
-print(f"\n{'='*50}")
-print(f"Mode: {'SMOKE TEST' if SMOKE_TEST else 'FULL TRAINING'}")
-print(f"Total batches per epoch: {len(dataloader)}")
-print(f"{'='*50}\n")
 
-for epoch in range(EPOCHS):
-    print(f"Epoch {epoch+1}/{EPOCHS}")
-    for step, batch in enumerate(dataloader):
-        task_loss, aux_loss = train_step(model, batch)
-        print(f"  Step {step+1} | task_loss={task_loss:.4f} | aux_loss={aux_loss:.4f}")
+def run():
+    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 22))
 
-    # Save checkpoint after each epoch
-    if not SMOKE_TEST:
-        torch.save(model.state_dict(), f'checkpoints/epoch_{epoch+1}.pt')
-        print(f"  Checkpoint saved → checkpoints/epoch_{epoch+1}.pt")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model  = model.to(device)
 
-print("\nDone!")
+    dataloader = get_dataloader(
+        JSONL_PATHS,
+        tokenizer,
+        batch_size=BATCH_SIZE,
+        max_length=MAX_LENGTH,
+        samples_per_expert=SAMPLES_PER_EXPERT
+    )
+
+    optimizer = optim.AdamW(get_trainable_params(model), lr=3e-4)
+
+    print(f"\n{'='*50}")
+    print(f"Mode: {'SMOKE TEST' if SMOKE_TEST else 'FULL TRAINING'}")
+    print(f"Total batches per epoch: {len(dataloader)}")
+    print(f"{'='*50}\n")
+
+    for epoch in range(EPOCHS):
+        print(f"Epoch {epoch+1}/{EPOCHS}")
+        for step, batch in enumerate(dataloader):
+            task_loss, aux_loss = train_step(model, batch, optimizer, device)
+            print(f"  Step {step+1} | task_loss={task_loss:.4f} | aux_loss={aux_loss:.4f}")
+
+        if not SMOKE_TEST:
+            torch.save(model.state_dict(), f'checkpoints/epoch_{epoch+1}.pt')
+            print(f"  Checkpoint saved → checkpoints/epoch_{epoch+1}.pt")
+
+    print("\nDone!")
