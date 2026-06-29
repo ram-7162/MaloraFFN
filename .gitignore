@@ -1,0 +1,22 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Checkpoints / model artifacts
+checkpoints/
+*.pt
+*.bin
+*.safetensors
+
+# Editor / OS
+.vscode/
+.DS_Store
+
+# Logs
+*.log
