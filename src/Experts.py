@@ -13,8 +13,8 @@ class AlgoExpert(nn.Module):
         self.alpha = alpha
         self.scale = alpha / r2     
 
-        self.P = nn.Parameter(torch.empty(r2, r1))
-        self.B = nn.Parameter(torch.zeros(d_model, r2))
+        self.P = nn.Parameter(torch.empty(r2, r1, dtype=torch.float16))
+        self.B = nn.Parameter(torch.zeros(d_model, r2, dtype=torch.float16))
 
         nn.init.kaiming_uniform_(self.P, a=5 ** 0.5)
 
@@ -39,8 +39,8 @@ class SyntaxPolyExpert(nn.Module):
         self.alpha = alpha
         self.scale = alpha / r2     
 
-        self.P = nn.Parameter(torch.empty(r2, r1))
-        self.B = nn.Parameter(torch.zeros(d_model, r2))
+        self.P = nn.Parameter(torch.empty(r2, r1, dtype=torch.float16))
+        self.B = nn.Parameter(torch.zeros(d_model, r2, dtype=torch.float16))
 
         nn.init.kaiming_uniform_(self.P, a=5 ** 0.5)
 
@@ -65,8 +65,8 @@ class SecureExpert(nn.Module):
         self.alpha = alpha
         self.scale = alpha / r2     
 
-        self.P = nn.Parameter(torch.empty(r2, r1))
-        self.B = nn.Parameter(torch.zeros(d_model, r2))
+        self.P = nn.Parameter(torch.empty(r2, r1, dtype=torch.float16))
+        self.B = nn.Parameter(torch.zeros(d_model, r2, dtype=torch.float16))
 
         nn.init.kaiming_uniform_(self.P, a=5 ** 0.5)
 

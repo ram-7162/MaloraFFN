@@ -53,6 +53,8 @@
 
 
 import torch
+import os
+import bitsandbytes as bnb
 from src.dataset import get_dataloader
 from src.Layers import updating_layers
 from src.model import build_model_and_tokenizer
@@ -69,10 +71,10 @@ r1          = 64
 r2          = 128
 alpha       = 16.0
 n_experts   = 3
-BATCH_SIZE  = 4
-MAX_LENGTH  = 512
+BATCH_SIZE  = 1
+MAX_LENGTH  = 256
 EPOCHS      = 3
-SMOKE_TEST  = True
+SMOKE_TEST  = False
 
 SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None
 
@@ -102,18 +104,28 @@ def train_step(model, batch, optimizer, device):
                 aux_loss = aux_loss + layer.mlp.last_auxloss
 
     total_loss = task_loss + 0.01 * aux_loss
+    if torch.isnan(task_loss):
+        raise RuntimeError("task_loss became NaN")
 
+    if torch.isnan(aux_loss):
+        raise RuntimeError("aux_loss became NaN")
+
+    if torch.isnan(total_loss):
+        raise RuntimeError("total_loss became NaN")
     total_loss.backward()
+    torch.nn.utils.clip_grad_norm_(
+    get_trainable_params(model),
+    max_norm=1.0
+        )
     optimizer.step()
 
-    return task_loss.item(), aux_loss.item()
+    return total_loss.item(),task_loss.item(), aux_loss.item()
 
 
 def run():
-    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 22))
+    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24))
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model  = model.to(device)
+    device = torch.device("cuda")
 
     dataloader = get_dataloader(
         JSONL_PATHS,
@@ -123,7 +135,10 @@ def run():
         samples_per_expert=SAMPLES_PER_EXPERT
     )
 
-    optimizer = optim.AdamW(get_trainable_params(model), lr=3e-4)
+    optimizer = bnb.optim.AdamW8bit(
+    get_trainable_params(model),
+    lr=1e-4,
+        )
 
     print(f"\n{'='*50}")
     print(f"Mode: {'SMOKE TEST' if SMOKE_TEST else 'FULL TRAINING'}")
@@ -133,8 +148,23 @@ def run():
     for epoch in range(EPOCHS):
         print(f"Epoch {epoch+1}/{EPOCHS}")
         for step, batch in enumerate(dataloader):
-            task_loss, aux_loss = train_step(model, batch, optimizer, device)
-            print(f"  Step {step+1} | task_loss={task_loss:.4f} | aux_loss={aux_loss:.4f}")
+            total_loss,task_loss, aux_loss = train_step(model, batch, optimizer, device)
+            if (step+1)%100==0 or step<20:
+                print(
+                    f"Step {step+1} | "
+                    f"total_loss={total_loss:.4f} | "
+                    f"task_loss={task_loss:.4f} | "
+                    f"aux_loss={aux_loss:.4f}"
+                    )
+            if (step + 1) % 1000 == 0:
+                os.makedirs("checkpoints", exist_ok=True)
+
+                torch.save(
+                model.state_dict(),
+                f"checkpoints/epoch{epoch+1}_step{step+1}.pt"
+                )
+
+                print(f"Checkpoint saved at epoch {epoch+1}, step {step+1}")
 
         if not SMOKE_TEST:
             torch.save(model.state_dict(), f'checkpoints/epoch_{epoch+1}.pt')
