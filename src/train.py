@@ -58,7 +58,7 @@ import bitsandbytes as bnb
 from src.dataset import get_dataloader
 from src.Layers import updating_layers
 from src.model import build_model_and_tokenizer
-from src.MaloraLayer import MALoRADownProjLayer
+from src.MaloraLayer import MALoRADownProjLayer,SymmetricMoEDownProjLayer
 import torch.optim as optim
 
 JSONL_PATHS = {
@@ -75,6 +75,7 @@ BATCH_SIZE  = 1
 MAX_LENGTH  = 256
 EPOCHS      = 3
 SMOKE_TEST  = False
+MODE="malora"
 
 SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None
 
@@ -99,7 +100,7 @@ def train_step(model, batch, optimizer, device):
 
     aux_loss = torch.tensor(0.0, device=device)
     for layer in model.model.layers:
-        if isinstance(layer.mlp, MALoRADownProjLayer):
+        if isinstance(layer.mlp, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
             if layer.mlp.last_auxloss is not None:
                 aux_loss = aux_loss + layer.mlp.last_auxloss
 
@@ -123,7 +124,7 @@ def train_step(model, batch, optimizer, device):
 
 
 def run():
-    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24))
+    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24), mode=MODE)
 
     device = torch.device("cuda")
 

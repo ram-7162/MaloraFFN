@@ -29,7 +29,7 @@ def load_tokenizer():
     return tokenizer
 
 
-def load_model(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16):
+def load_model(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16, mode="malora"):
     model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     token=HF_TOKEN,
@@ -39,11 +39,11 @@ def load_model(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float1
     )
     model.gradient_checkpointing_enable()
     # (model, r1, r2, alpha, n_experts
-    model = updating_layers(model, r1, r2, alpha, n_experts,layer_range)
+    model = updating_layers(model, r1, r2, alpha, n_experts,layer_range, mode)
     return model
 
 
-def build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16):
+def build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16, mode="malora"):
     tokenizer = load_tokenizer()
-    model = load_model(r1, r2, alpha, n_experts, layer_range=layer_range, dtype=dtype)
+    model = load_model(r1, r2, alpha, n_experts, layer_range=layer_range, dtype=dtype, mode=mode)
     return model, tokenizer

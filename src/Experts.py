@@ -78,3 +78,22 @@ class SecureExpert(nn.Module):
         out = F.linear(h, self.B)                # x @ B.T
 
         return self.scale * out
+class SymmetricExpert(nn.Module):
+    def __init__(self,r1,r2,alpha, d_model, d_ffn):
+
+        super().__init__()
+        self.r1=r1
+        self.r2=r2
+        self.scale=alpha/r2
+        self.d_model=d_model
+        self.A=nn.Parameter(torch.empty(r1, d_ffn, dtype=torch.float16)) #own downprojection for each expert
+        self.P = nn.Parameter(torch.empty(r2, r1, dtype=torch.float16))
+        self.B = nn.Parameter(torch.zeros(d_model, r2, dtype=torch.float16))
+        nn.init.kaiming_uniform_(self.A, a=5**0.5)
+        nn.init.kaiming_uniform_(self.P, a=5**0.5)
+    def forward(self,h):
+        x= F.linear(h,self.A)
+        x=F.linear(x, self.P)
+        out= F.linear(x, self.B)
+        return self.scale* out
+    
