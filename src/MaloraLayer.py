@@ -54,6 +54,8 @@ class MALoRADownProjLayer(nn.Module):
             correction = correction + G_t * expert(shared_out)
 
         return baseline + correction
+
+
 class DenseLoRADownProjLayer(nn.Module):
     
     def __init__(self, original_mlp, r, alpha, d_model, d_ffn):
@@ -71,11 +73,16 @@ class DenseLoRADownProjLayer(nn.Module):
         self.B=nn.Parameter(torch.zeros(d_model, r, dtype=torch.float16))
         nn.init.kaiming_uniform_(self.A, a=5**0.5)
         self.last_auxloss=torch.tensor(0.0)
+
+    
     def forward(self,x):
         h=self.act_fn(self.gate_proj(x))*self.up_proj(x)
         baseline=self.W_down(h)
         correction=F.linear(F.linear(h, self.A), self.B) *self.scale
         return baseline + correction
+
+
+
 class SymmetricMoEDownProjLayer(nn.Module):
     def __init__(self, original_mlp, n_experts, r1, r2, d_model, d_ffn, alpha):
         super().__init__()
