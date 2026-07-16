@@ -1,77 +1,167 @@
 import json
+import random
+from collections import Counter
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+
+def load_and_split(jsonl_paths, val_ratio=0.1, seed=42):
+    train_samples, val_samples = [], []
+    rng = random.Random(seed)
+
+    for expert_id, path in jsonl_paths.items():
+        rows = []
+        with open(path, 'r') as f:
+            for line in f:
+                row = json.loads(line.strip())
+                row['expert_id'] = expert_id  
+                rows.append(row)
+
+        rng.shuffle(rows)
+        n_val = max(1, int(len(rows) * val_ratio))
+        val_samples.extend(rows[:n_val])
+        train_samples.extend(rows[n_val:])
+
+        print(f"Expert {expert_id}: {len(rows)} total -> {len(rows)-n_val} train / {n_val} val")
+
+    print(f"Total: {len(train_samples)} train, {len(val_samples)} val")
+    return train_samples, val_samples
+
+
+
 class MALoRADataset(Dataset):
 
-    def __init__(self, jsonl_paths, tokenizer, max_length=512, samples_per_expert=None):
-        """
-        jsonl_paths: dict like {0: 'data/expert0_algo_training.jsonl', ...}
-        samples_per_expert: int or None — if int, takes only that many per file (for smoke test)
-        """
-        self.tokenizer   = tokenizer
-        self.max_length  = max_length
-        self.samples     = []
+    
+    def __init__(self, samples, tokenizer, max_lengths, min_output_tokens=5):
+        self.tokenizer  = tokenizer
+        self.max_lengths = max_lengths
 
-        for expert_id, path in jsonl_paths.items():
-            rows = []
-            with open(path, 'r') as f:
-                for line in f:
-                    rows.append(json.loads(line.strip()))
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
-            # Take only N samples if specified (smoke test mode)
-            if samples_per_expert is not None:
-                rows = rows[:samples_per_expert]
+        self.samples = []
+        dropped = 0
 
-            self.samples.extend(rows)
-            print(f"Expert {expert_id} loaded: {len(rows)} samples from {path}")
+        original_by_expert = Counter(r['expert_id'] for r in samples) 
+        dropped_by_expert = Counter()
+        
+        for row in samples:
+            prompt_len = len(tokenizer(self._prompt_prefix(row), add_special_tokens=True)['input_ids'])
+            
+            expert_id = row.get('expert_id', -1)
+            if expert_id == 0:
+                current_max_len = self.max_lengths.get("expert_0", 1024)
+            else:
+                current_max_len = self.max_lengths.get("default", 512)
 
-        print(f"Total samples: {len(self.samples)}")
+            if prompt_len >= current_max_len - min_output_tokens:
+                dropped_by_expert[row['expert_id']] += 1
+                dropped += 1  
+                continue
+                
+            row = dict(row)              
+            row['_prompt_len'] = prompt_len
+            self.samples.append(row)
+
+        if dropped > 0:
+            print(f"Dropped {dropped}/{len(samples)} samples — prompt too long for designated max_lengths")
+            print(f"Dropped by expert: {dict(dropped_by_expert)}")
+
 
     def __len__(self):
         return len(self.samples)
 
-    def format_prompt(self, row):
+
+    def _prompt_prefix(self, row):
         inp = row.get('input', '').strip()
         if inp:
             return (
                 f"### Instruction:\n{row['instruction']}\n\n"
                 f"### Input:\n{inp}\n\n"
-                f"### Output:\n{row['output']}"
+                f"### Output:\n"
             )
         else:
             return (
                 f"### Instruction:\n{row['instruction']}\n\n"
-                f"### Output:\n{row['output']}"
+                f"### Output:\n"
             )
 
+    def format_prompt(self, row):
+        prefix = self._prompt_prefix(row)
+        return f"{prefix}{row['output']}"
+
+
     def __getitem__(self, idx):
-        row    = self.samples[idx]
-        prompt = self.format_prompt(row)
+        row = self.samples[idx]
+        full_text = self.format_prompt(row)
+
+        
+        expert_id = row.get('expert_id', -1)
+        if expert_id == 0:
+            current_max_len = self.max_lengths.get("expert_0", 1024)
+        else:
+            current_max_len = self.max_lengths.get("default", 512)
 
         encoded = self.tokenizer(
-            prompt,
-            max_length=self.max_length,
-            truncation=True,
-            padding='max_length',
-            return_tensors='pt'
+            full_text, max_length=current_max_len,
+            truncation=True, padding='max_length', return_tensors='pt'
         )
 
+        prompt_len = min(row['_prompt_len'], current_max_len)
+
+        input_ids      = encoded['input_ids'].squeeze(0)
+        attention_mask = encoded['attention_mask'].squeeze(0)
+
+        labels = input_ids.clone()
+        labels[:prompt_len] = -100
+        labels[attention_mask == 0] = -100
+
         return {
-            'input_ids':      encoded['input_ids'].squeeze(0),
-            'attention_mask': encoded['attention_mask'].squeeze(0),
+            'input_ids':      input_ids,
+            'attention_mask': attention_mask,
+            'labels':         labels,
             'expert_id':      torch.tensor(row['expert_id'], dtype=torch.long)
         }
 
 
-def get_dataloader(jsonl_paths, tokenizer, batch_size=4,
-                   max_length=512, samples_per_expert=None, shuffle=True):
+def get_dataloaders(jsonl_paths, tokenizer, batch_size=4, max_length=MAX_LENGTHS,
+                     val_ratio=0.1, seed=SEED, samples_per_expert=None):
 
-    dataset = MALoRADataset(
-        jsonl_paths,
-        tokenizer,
-        max_length=max_length,
-        samples_per_expert=samples_per_expert
-    )
+    train_samples, val_samples = load_and_split(jsonl_paths, val_ratio, seed)
+    
 
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    if samples_per_expert is not None:
+        capped_train = {}
+        for row in train_samples:
+            capped_train.setdefault(row['expert_id'], []).append(row)
+        train_samples = [r for rows in capped_train.values() for r in rows[:samples_per_expert]]
+
+        capped_val = {}
+        for row in val_samples:
+            capped_val.setdefault(row['expert_id'], []).append(row)
+        val_samples = [r for rows in capped_val.values() for r in rows[:3]]
+
+    train_ds = MALoRADataset(train_samples, tokenizer, max_length)
+    val_ds   = MALoRADataset(val_samples, tokenizer, max_length)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader   = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    return train_loader, val_loader
+
+
+def load_jsonl(path):
+    rows = []
+    with open(path, 'r') as f:
+        for line in f:
+            rows.append(json.loads(line.strip()))
+    return rows
+
+
+
+def get_dataloaders2(split_path, tokenizer, batch_size=4, max_length=512, shuffle=True):
+    samples = load_jsonl(split_path)
+    ds = MALoRADataset(samples, tokenizer, max_length)
+    
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
+
