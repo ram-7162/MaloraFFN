@@ -20,8 +20,9 @@ MAX_LENGTHS = {
     "expert_0": 1024 
 }
 SMOKE_TEST  = True
+DEBUG_GRAD_CHECK = True
 EPOCHS      = 3
-MODE        = "malora"    ## symmetric_moe   ## lora
+MODE        = "symmetric_moe"    ## symmetric_moe   ## lora   ## malora
 SEED        = 42 
 LEARNING_RATE = 1.32e-4
 WEIGHT_DECAY = 0.065
@@ -81,6 +82,16 @@ def train_step(model, batch, optimizer, device):
 
     
     total_loss.backward()
+
+    if DEBUG_GRAD_CHECK:
+        for layer in model.model.layers:
+            if isinstance(layer.mlp, MALoRADownProjLayer):
+                grad = layer.mlp.router.Wg.weight.grad
+                if grad is None:
+                    print("WARNING: router grad is None — not receiving signal")
+                else:
+                    print(f"router grad norm: {grad.norm().item():.6f}")
+
     
     torch.nn.utils.clip_grad_norm_(get_trainable_params(model), max_norm=1.0)
     optimizer.step()
