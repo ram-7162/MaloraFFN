@@ -70,7 +70,7 @@ def train_step(model, batch, optimizer, device):
             if layer.mlp.last_auxloss is not None:
                 aux_loss = aux_loss + layer.mlp.last_auxloss
 
-    total_loss = task_loss + 0.01 * aux_loss
+    total_loss = task_loss +  aux_loss
 
     
     if torch.isnan(task_loss):
@@ -85,7 +85,7 @@ def train_step(model, batch, optimizer, device):
 
     if DEBUG_GRAD_CHECK:
         for layer in model.model.layers:
-            if isinstance(layer.mlp, MALoRADownProjLayer):
+            if isinstance(layer.mlp, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
                 grad = layer.mlp.router.Wg.weight.grad
                 if grad is None:
                     print("WARNING: router grad is None — not receiving signal")
