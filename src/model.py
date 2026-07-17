@@ -3,7 +3,6 @@ import torch
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM,BitsAndBytesConfig
 from src.Layers import updating_layers
-from src.Layers import updating_layers_alternative
 from peft import prepare_model_for_kbit_training
 
 
@@ -47,7 +46,7 @@ def load_model(r1, r2, alpha, n_experts, layer_range, dtype=torch.float16, mode=
    
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
-    model = updating_layers_alternative(model, r1, r2, alpha, n_experts, layer_range, mode)
+    model = updating_layers(model, r1, r2, alpha, n_experts, layer_range, mode)
 
     return model
 
