@@ -1,12 +1,19 @@
 
 import torch
 import os
+import json
+import random
 import bitsandbytes as bnb
-from src.dataset import get_dataloader
 from src.Layers import updating_layers
+from src.dataset import get_dataloader
 from src.model import build_model_and_tokenizer
-from src.MaloraLayer import MALoRADownProjLayer,SymmetricMoEDownProjLayer
+from src.MaloraLayer import MALoRADownProjLayer
+from src.Router import TopKGatingRouter
+from src.dataset import MALoRADataset  
+from torch.utils.data import DataLoader 
 import torch.optim as optim
+import gc
+from transformers import AutoConfig
 
 JSONL_PATH = 'data/final_data.jsonl'
 
@@ -144,7 +151,7 @@ def run():
             module.to(device)
 
     
-    train_loader, val_loader = get_dataloaders(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
+    train_loader, val_loader = get_dataloader(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
 
 
     optimizer = bnb.optim.AdamW8bit(get_trainable_params(model), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
@@ -156,7 +163,7 @@ def run():
 
     for epoch in range(EPOCHS):
         print(f"Epoch {epoch+1}/{EPOCHS}")
-        for step, batch in enumerate(dataloader):
+        for step, batch in enumerate(train_loader):
             total_loss,task_loss, aux_loss = train_step(model, batch, optimizer, device)
             if (step+1)%100==0 or step<20:
                 print(
@@ -191,9 +198,9 @@ def run():
             print(f"  Checkpoint saved → checkpoints/epoch_{epoch+1}.pt")
 
         
-        del model, optimizer
-        gc.collect()
-        torch.cuda.empty_cache()
+    del model, optimizer
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 
