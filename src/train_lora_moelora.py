@@ -14,16 +14,21 @@ JSONL_PATHS = {
     2: 'data/expert2_secure_training.jsonl',
 }
 
-r1          = 64
-r2          = 128
-alpha       = 16.0
-n_experts   = 3
+r1   = 32
+r2  = 96
+alpha   = 32.0
+n_experts  = 3
 BATCH_SIZE  = 1
-MAX_LENGTH  = 256
+MAX_LENGTHS = {
+    "default": 512,
+    "expert_0": 1024 
+}
+SMOKE_TEST  = True
 EPOCHS      = 3
-SMOKE_TEST  = False
-MODE="malora"
-
+MODE        = "malora"
+SEED        = 42 
+LEARNING_RATE = 1.32e-4
+WEIGHT_DECAY = 0.065
 SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None
 
 
@@ -37,44 +42,56 @@ def train_step(model, batch, optimizer, device):
 
     input_ids      = batch['input_ids'].to(device)
     attention_mask = batch['attention_mask'].to(device)
+    labels         = batch['labels'].to(device)      
 
     outputs = model(
         input_ids=input_ids,
         attention_mask=attention_mask,
-        labels=input_ids
+        labels=labels
     )
+    
     task_loss = outputs.loss
-
     aux_loss = torch.tensor(0.0, device=device)
+    
     for layer in model.model.layers:
         if isinstance(layer.mlp, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
             if layer.mlp.last_auxloss is not None:
                 aux_loss = aux_loss + layer.mlp.last_auxloss
 
     total_loss = task_loss + 0.01 * aux_loss
+
+    
     if torch.isnan(task_loss):
         raise RuntimeError("task_loss became NaN")
-
     if torch.isnan(aux_loss):
         raise RuntimeError("aux_loss became NaN")
-
     if torch.isnan(total_loss):
         raise RuntimeError("total_loss became NaN")
-    total_loss.backward()
-    torch.nn.utils.clip_grad_norm_(
-    get_trainable_params(model),
-    max_norm=1.0
-        )
-    optimizer.step()
 
+    
+    total_loss.backward()
+    
+    torch.nn.utils.clip_grad_norm_(get_trainable_params(model), max_norm=1.0)
+    optimizer.step()
+    
     return total_loss.item(),task_loss.item(), aux_loss.item()
 
 
 def run():
-    model, tokenizer = build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24), mode=MODE)
+    
+    model, tokenizer = build_model_and_tokenizer(
+            r1=32, r2=96, alpha=alpha, n_experts=n_experts,
+            layer_range=alternate_layers, mode=MODE
+        )
 
     device = torch.device("cuda")
 
+    for module in model.modules():
+        if isinstance(module, TopKGatingRouter):
+            module.to(device).float() # Ensure router is float32 and on GPU
+        elif isinstance(module, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
+            module.to(device)
+            
     dataloader = get_dataloader(
         JSONL_PATHS,
         tokenizer,
