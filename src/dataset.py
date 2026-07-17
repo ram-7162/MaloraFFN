@@ -29,6 +29,15 @@ def load_and_split(jsonl_paths, val_ratio=0.1, seed=42):
 
 
 
+def load_jsonl(path):
+    rows = []
+    with open(path, 'r') as f:
+        for line in f:
+            rows.append(json.loads(line.strip()))
+    return rows
+
+
+
 class MALoRADataset(Dataset):
 
     
@@ -124,10 +133,14 @@ class MALoRADataset(Dataset):
         }
 
 
-def get_dataloaders(jsonl_paths, tokenizer, batch_size=4, max_length=MAX_LENGTHS,
-                     val_ratio=0.1, seed=SEED, samples_per_expert=None):
+def get_dataloaders(path, tokenizer, batch_size=BATCH_SIZE, max_lengths=MAX_LENGTHS,
+                    seed=SEED, samples_per_expert=None):
 
-    train_samples, val_samples = load_and_split(jsonl_paths, val_ratio, seed)
+    subset = load_jsonl(path)
+
+    random.Random(seed).shuffle(subset)
+    n_val = int(len(subset) * 0.1)
+    val_samples, train_samples = subset[:n_val], subset[n_val:]
     
 
     if samples_per_expert is not None:
@@ -141,8 +154,10 @@ def get_dataloaders(jsonl_paths, tokenizer, batch_size=4, max_length=MAX_LENGTHS
             capped_val.setdefault(row['expert_id'], []).append(row)
         val_samples = [r for rows in capped_val.values() for r in rows[:3]]
 
-    train_ds = MALoRADataset(train_samples, tokenizer, max_length)
-    val_ds   = MALoRADataset(val_samples, tokenizer, max_length)
+    train_ds = MALoRADataset(train_samples, tokenizer, max_lengths)
+    val_ds   = MALoRADataset(val_samples, tokenizer, max_lengths)
+
+    print(f"\n train={len(train_samples)}  val={len(val_samples)}\n{'='*50}\n")
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
@@ -150,12 +165,7 @@ def get_dataloaders(jsonl_paths, tokenizer, batch_size=4, max_length=MAX_LENGTHS
     return train_loader, val_loader
 
 
-def load_jsonl(path):
-    rows = []
-    with open(path, 'r') as f:
-        for line in f:
-            rows.append(json.loads(line.strip()))
-    return rows
+
 
 
 
