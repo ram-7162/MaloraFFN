@@ -3,6 +3,9 @@ import torch
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM,BitsAndBytesConfig
 from src.Layers import updating_layers
+from src.Layers import updating_layers_alternative
+from peft import prepare_model_for_kbit_training
+
 
 load_dotenv() 
 
@@ -16,12 +19,15 @@ bnb_config = BitsAndBytesConfig(
 )
 
 
-r1          = 64
-r2          = 128
-alpha       = 16.0
+r1          = 32
+r2          = 96
+alpha       = 32.0
 n_experts   = 3
-BATCH_SIZE  = 4
-MAX_LENGTH  = 256
+BATCH_SIZE  = 1
+MAX_LENGTHS = {
+    "default": 512,
+    "expert_0": 1024 
+}
 
 def load_tokenizer():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=HF_TOKEN)
@@ -29,7 +35,7 @@ def load_tokenizer():
     return tokenizer
 
 
-def load_model(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16, mode="malora"):
+def load_model(r1, r2, alpha, n_experts, layer_range, dtype=torch.float16, mode="malora"):
     model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     token=HF_TOKEN,
@@ -37,11 +43,18 @@ def load_model(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float1
     device_map="auto",
     torch_dtype=torch.float16,
     )
-    model.gradient_checkpointing_enable()
-    # (model, r1, r2, alpha, n_experts
-    model = updating_layers(model, r1, r2, alpha, n_experts,layer_range, mode)
-    return model
+        # (model, r1, r2, alpha, n_experts
+   
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
+    if isinstance(layer_range, tuple):
+        model = updating_layers(model, r1, r2, alpha, n_experts, layer_range, mode)
+    elif isinstance(layer_range, list):
+        model = updating_layers_alternative(model, r1, r2, alpha, n_experts, layer_range, mode)
+    else:
+        raise TypeError("layer_range must be either tuple or list")
+
+    return model
 
 def build_model_and_tokenizer(r1, r2, alpha, n_experts, layer_range=(8, 24), dtype=torch.float16, mode="malora"):
     tokenizer = load_tokenizer()
