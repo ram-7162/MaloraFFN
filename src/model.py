@@ -47,12 +47,7 @@ def load_model(r1, r2, alpha, n_experts, layer_range, dtype=torch.float16, mode=
    
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
-    if isinstance(layer_range, tuple):
-        model = updating_layers(model, r1, r2, alpha, n_experts, layer_range, mode)
-    elif isinstance(layer_range, list):
-        model = updating_layers_alternative(model, r1, r2, alpha, n_experts, layer_range, mode)
-    else:
-        raise TypeError("layer_range must be either tuple or list")
+    model = updating_layers_alternative(model, r1, r2, alpha, n_experts, layer_range, mode)
 
     return model
 
