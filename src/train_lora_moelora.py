@@ -21,7 +21,7 @@ MAX_LENGTHS = {
 }
 SMOKE_TEST  = True
 EPOCHS      = 3
-MODE        = "malora"
+MODE        = "malora"    ## symmetric_moe   ## lora
 SEED        = 42 
 LEARNING_RATE = 1.32e-4
 WEIGHT_DECAY = 0.065
