@@ -31,16 +31,21 @@ class TopKGatingRouter(nn.Module):
 
 
     def forward(self,x):
-        scores=self.Wg(x)
+        weight = self.Wg.weight.float()
+        scores = torch.nn.functional.linear(x.float(), self.Wg.weight, None)
+
         if torch.isnan(scores).any():
             raise RuntimeError("NaN in scores")
         if self.training:
             noise=torch.randn_like(scores)*0.01
             scores+=noise
         values,indices=torch.topk(scores,self.k,dim=-1)
-        container=torch.full_like(scores, float('-inf'))
-        container.scatter_(-1,indices,values)
-        routing_weights=torch.softmax(container,dim=-1)
+        
+        full_probs = torch.softmax(scores, dim=-1)          # real, unmasked probabilities
+        routing_weights = torch.zeros_like(full_probs)
+        routing_weights.scatter_(-1, indices, full_probs.gather(-1, indices))
+
+        
         if torch.isnan(routing_weights).any():
             raise RuntimeError("NaN in routing_weights")
         aux_loss=self._load_balance_loss(routing_weights,scores)
