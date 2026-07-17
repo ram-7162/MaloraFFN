@@ -8,11 +8,7 @@ from src.model import build_model_and_tokenizer
 from src.MaloraLayer import MALoRADownProjLayer,SymmetricMoEDownProjLayer
 import torch.optim as optim
 
-JSONL_PATHS = {
-    0: 'data/expert0_algo_training.jsonl',
-    1: 'data/expert1_syntax_training.jsonl',
-    2: 'data/expert2_secure_training.jsonl',
-}
+JSONL_PATH = 'data/final_data.jsonl'
 
 r1   = 32
 r2  = 96
@@ -34,6 +30,21 @@ SAMPLES_PER_EXPERT = 4 if SMOKE_TEST else None
 
 def get_trainable_params(model):
     return [p for p in model.parameters() if p.requires_grad]
+
+def log_result(record, path="results/model_train.jsonl"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def get_num_layers(model_name):
+    config = AutoConfig.from_pretrained(model_name)
+    return config.num_hidden_layers
+
+
+num_layers = get_num_layers("meta-llama/Meta-Llama-3-8B-Instruct") 
+
+alternate_layers = list(range(0, num_layers, 2))   
 
 
 def train_step(model, batch, optimizer, device):
@@ -77,6 +88,35 @@ def train_step(model, batch, optimizer, device):
     return total_loss.item(),task_loss.item(), aux_loss.item()
 
 
+def val_step(model, batch, device):
+    model.eval()
+    with torch.no_grad():
+        input_ids      = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+        labels         = batch['labels'].to(device)
+        
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        task_loss = outputs.loss
+
+        aux_loss = torch.tensor(0.0, device=device)
+        for layer in model.model.layers:
+            if isinstance(layer.mlp, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
+                if layer.mlp.last_auxloss is not None:
+                    aux_loss = aux_loss + layer.mlp.last_auxloss
+
+        return task_loss.item(), aux_loss.item()
+
+
+def run_validation(model, val_dataloader, device):
+    total_task, total_aux, n = 0.0, 0.0, 0
+    for batch in val_dataloader:
+        task_loss, aux_loss = val_step(model, batch, device)
+        total_task += task_loss
+        total_aux  += aux_loss
+        n += 1
+    return total_task / n, total_aux / n
+
+
 def run():
     
     model, tokenizer = build_model_and_tokenizer(
@@ -91,19 +131,12 @@ def run():
             module.to(device).float() # Ensure router is float32 and on GPU
         elif isinstance(module, (MALoRADownProjLayer, SymmetricMoEDownProjLayer)):
             module.to(device)
-            
-    dataloader = get_dataloader(
-        JSONL_PATHS,
-        tokenizer,
-        batch_size=BATCH_SIZE,
-        max_length=MAX_LENGTH,
-        samples_per_expert=SAMPLES_PER_EXPERT
-    )
 
-    optimizer = bnb.optim.AdamW8bit(
-    get_trainable_params(model),
-    lr=1e-4,
-        )
+    
+    train_loader, val_loader = get_dataloaders(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
+
+
+    optimizer = bnb.optim.AdamW8bit(get_trainable_params(model), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
     print(f"\n{'='*50}")
     print(f"Mode: {'SMOKE TEST' if SMOKE_TEST else 'FULL TRAINING'}")
@@ -131,8 +164,27 @@ def run():
 
                 print(f"Checkpoint saved at epoch {epoch+1}, step {step+1}")
 
+        
+        val_task_loss, val_aux_loss = run_validation(model, val_loader, device)
+        print(f"  Epoch {epoch+1} | val_task_loss={val_task_loss:.4f} | val_aux_loss={val_aux_loss:.4f}")
+
+        log_result({
+            "stage": MODE,
+            "epoch": epoch + 1,
+            "val_task_loss": val_task_loss, "val_aux_loss": val_aux_loss,
+        })
+
+
         if not SMOKE_TEST:
             torch.save(model.state_dict(), f'checkpoints/epoch_{epoch+1}.pt')
             print(f"  Checkpoint saved → checkpoints/epoch_{epoch+1}.pt")
 
-    print("\nDone!")
+        
+        del model, optimizer
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
+
+
+run()
