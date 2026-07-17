@@ -5,7 +5,7 @@ import json
 import random
 import bitsandbytes as bnb
 from src.Layers import updating_layers
-from src.dataset import get_dataloader
+from src.dataset import get_dataloaders
 from src.model import build_model_and_tokenizer
 from src.MaloraLayer import MALoRADownProjLayer
 from src.Router import TopKGatingRouter
@@ -151,7 +151,7 @@ def run():
             module.to(device)
 
     
-    train_loader, val_loader = get_dataloader(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
+    train_loader, val_loader = get_dataloaders(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
 
 
     optimizer = bnb.optim.AdamW8bit(get_trainable_params(model), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
