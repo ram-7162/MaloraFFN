@@ -7,7 +7,8 @@ import bitsandbytes as bnb
 from src.Layers import updating_layers
 from src.dataset import get_dataloaders
 from src.model import build_model_and_tokenizer
-from src.MaloraLayer import MALoRADownProjLayer
+from src.MaloraLayer import MALoRADownProjLayer,DenseLoRADownProjLayer,SymmetricMoEDownProjLayer
+
 from src.Router import TopKGatingRouter
 from src.dataset import MALoRADataset  
 from torch.utils.data import DataLoader 
@@ -26,8 +27,8 @@ MAX_LENGTHS = {
     "default": 512,
     "expert_0": 1024 
 }
-SMOKE_TEST  = True
-DEBUG_GRAD_CHECK = True
+SMOKE_TEST  = False
+DEBUG_GRAD_CHECK = False
 EPOCHS      = 3
 MODE        = "symmetric_moe"    ## symmetric_moe   ## lora   ## malora
 SEED        = 42 
@@ -151,14 +152,14 @@ def run():
             module.to(device)
 
     
-    train_loader, val_loader = get_dataloaders(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTHS, samples_per_expert=SAMPLES_PER_EXPERT)
+    train_loader, val_loader = get_dataloaders(JSONL_PATH, tokenizer, batch_size=BATCH_SIZE, max_lengths=MAX_LENGTHS,seed=SEED, samples_per_expert=SAMPLES_PER_EXPERT)
 
 
     optimizer = bnb.optim.AdamW8bit(get_trainable_params(model), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
     print(f"\n{'='*50}")
     print(f"Mode: {'SMOKE TEST' if SMOKE_TEST else 'FULL TRAINING'}")
-    print(f"Total batches per epoch: {len(dataloader)}")
+    print(f"Total batches per epoch: {len(train_loader)}")
     print(f"{'='*50}\n")
 
     for epoch in range(EPOCHS):

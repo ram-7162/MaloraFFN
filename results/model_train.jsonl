@@ -1,0 +1,4 @@
+{"stage": "symmetric_moe", "epoch": 1, "val_task_loss": 0.3943406624926461, "val_aux_loss": 0.19187125232484606}
+{"stage": "symmetric_moe", "epoch": 2, "val_task_loss": 0.33446970333655673, "val_aux_loss": 0.2305080062813229}
+{"stage": "symmetric_moe", "epoch": 3, "val_task_loss": 0.31494126717249554, "val_aux_loss": 0.243240593208207}
+{"stage": "symmetric_moe", "epoch": 1, "val_task_loss": 0.3563587246747798, "val_aux_loss": 0.22083138016377474}

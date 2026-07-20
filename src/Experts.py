@@ -91,9 +91,9 @@ class SymmetricExpert(nn.Module):
         self.B = nn.Parameter(torch.zeros(d_model, r2, dtype=torch.float16))
         nn.init.kaiming_uniform_(self.A, a=5**0.5)
         nn.init.kaiming_uniform_(self.P, a=5**0.5)
-    def forward(self,h):
-        x= F.linear(h,self.A)
-        x=F.linear(x, self.P)
-        out= F.linear(x, self.B)
-        return self.scale* out
+    def forward(self, h):
+        x = F.linear(h, self.A.to(h.dtype))
+        x = F.linear(x, self.P.to(h.dtype))
+        out = F.linear(x, self.B.to(h.dtype))
+        return self.scale * out
     

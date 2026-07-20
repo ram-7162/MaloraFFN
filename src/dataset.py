@@ -133,8 +133,8 @@ class MALoRADataset(Dataset):
         }
 
 
-def get_dataloaders(path, tokenizer, batch_size=BATCH_SIZE, max_lengths=MAX_LENGTHS,
-                    seed=SEED, samples_per_expert=None):
+def get_dataloaders(path, tokenizer, batch_size, max_lengths,
+                    seed=42, samples_per_expert=None):
 
     subset = load_jsonl(path)
 

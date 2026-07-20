@@ -113,7 +113,12 @@ class SymmetricMoEDownProjLayer(nn.Module):
 
 
     def forward(self, x):
-        h = self.act_fn(self.gate_proj(x)) * self.up_proj(x)  # [B,T,d_ffn]
+        gate = self.gate_proj(x)
+        up = self.up_proj(x)
+
+
+        h = self.act_fn(gate) * up
+          # [B,T,d_ffn]
 
         gate_weights, aux_loss = self.router(x)
 
