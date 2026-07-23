@@ -1,4 +1,18 @@
+{"stage": "trainable_S_A", "epoch": 1, "val_task_loss": 0.35449918170560496, "val_aux_loss": 0.2082997494428272}
+{"stage": "trainable_S_A", "epoch": 2, "val_task_loss": 0.3487936960524058, "val_aux_loss": 0.2083210101831474}
+{"stage": "trainable_S_A", "epoch": 3, "val_task_loss": 0.3586007647308929, "val_aux_loss": 0.21167128338383961}
+
+
+{"stage": "frozen_S_A", "epoch": 1, "val_task_loss": 0.3518916219666288, "val_aux_loss": 0.37159929800965547}
+{"stage": "frozen_S_A", "epoch": 2, "val_task_loss": 0.3599669846797683, "val_aux_loss": 0.3701483624505885}
+{"stage": "frozen_S_A", "epoch": 3, "val_task_loss": 0.37405877030577034, "val_aux_loss": 0.3639527295510716}
+
+
+
+#### for smoke_test
 {"stage": "symmetric_moe", "epoch": 1, "val_task_loss": 0.3943406624926461, "val_aux_loss": 0.19187125232484606}
 {"stage": "symmetric_moe", "epoch": 2, "val_task_loss": 0.33446970333655673, "val_aux_loss": 0.2305080062813229}
 {"stage": "symmetric_moe", "epoch": 3, "val_task_loss": 0.31494126717249554, "val_aux_loss": 0.243240593208207}
+
+
 {"stage": "symmetric_moe", "epoch": 1, "val_task_loss": 0.3563587246747798, "val_aux_loss": 0.22083138016377474}
