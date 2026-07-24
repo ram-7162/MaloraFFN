@@ -16,3 +16,9 @@
 
 
 {"stage": "symmetric_moe", "epoch": 1, "val_task_loss": 0.3563587246747798, "val_aux_loss": 0.22083138016377474}
+{"stage": "lora", "epoch": 1, "val_task_loss": 0.3577597203354041, "val_aux_loss": 0.0}
+{"stage": "lora", "epoch": 2, "val_task_loss": 0.3213492189016607, "val_aux_loss": 0.0}
+{"stage": "lora", "epoch": 3, "val_task_loss": 0.31883446416921085, "val_aux_loss": 0.0}
+{"stage": "lora", "epoch": 1, "val_task_loss": 0.3605256575467017, "val_aux_loss": 0.0}
+{"stage": "lora", "epoch": 2, "val_task_loss": 0.3615618093895269, "val_aux_loss": 0.0}
+{"stage": "lora", "epoch": 3, "val_task_loss": 0.3811178914564252, "val_aux_loss": 0.0}

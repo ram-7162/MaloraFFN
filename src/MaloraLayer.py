@@ -66,7 +66,7 @@ class DenseLoRADownProjLayer(nn.Module):
         self.W_down=original_mlp.down_proj
 
         for proj in [self.gate_proj,self.up_proj,self.W_down]:
-            for p in proj.parameters:
+            for p in proj.parameters():
                 p.requires_grad=False
         self.scale=alpha/r
         self.A=nn.Parameter(torch.empty(r, d_ffn, dtype=torch.float16))
@@ -75,10 +75,15 @@ class DenseLoRADownProjLayer(nn.Module):
         self.last_auxloss=torch.tensor(0.0)
 
     
-    def forward(self,x):
-        h=self.act_fn(self.gate_proj(x))*self.up_proj(x)
-        baseline=self.W_down(h)
-        correction=F.linear(F.linear(h, self.A), self.B) *self.scale
+    def forward(self, x):
+        h = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
+        baseline = self.W_down(h)
+
+        correction = F.linear(
+        F.linear(h, self.A.to(h.dtype)),
+        self.B.to(h.dtype)
+        ) * self.scale
+
         return baseline + correction
 
 

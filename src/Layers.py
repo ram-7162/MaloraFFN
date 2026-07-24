@@ -11,7 +11,7 @@ def updating_layers(model, r1, r2, alpha, n_experts, layer_range, mode="malora")
         if mode == "symmetric_moe":
             new_mlp = SymmetricMoEDownProjLayer(original_mlp, n_experts, r1, r2, d_model, d_ffn, alpha)
         elif mode == "lora":
-            new_mlp = DenseLoRADownProjLayer(original_mlp, r2, d_model, d_ffn, alpha)
+            new_mlp = DenseLoRADownProjLayer(original_mlp, r2,alpha, d_model, d_ffn)
         elif mode == "malora":
             new_mlp = MALoRADownProjLayer(original_mlp, n_experts, r1, r2, d_model, d_ffn, alpha)
         else:
