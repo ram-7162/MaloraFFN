@@ -25,7 +25,7 @@ n_experts   = 3
 BATCH_SIZE  = 1
 MAX_LENGTHS = {
     "default": 512,
-    "expert_0": 1024 
+    "expert_0": 512
 }
 
 def load_tokenizer():
