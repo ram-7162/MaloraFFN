@@ -51,10 +51,11 @@ def load_and_split(jsonl_paths, val_ratio=0.1, seed=42):
 
 class MALoRADataset(Dataset):
 
-    
     def __init__(self, samples, tokenizer, max_lengths, min_output_tokens=5):
-        self.tokenizer  = tokenizer
+        self.tokenizer = tokenizer
         self.max_lengths = max_lengths
+
+        self.tokenizer.padding_side = "right"
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -66,11 +67,12 @@ class MALoRADataset(Dataset):
         dropped_by_expert = Counter()
         
         for row in samples:
-            prompt_len = len(tokenizer(self._prompt_prefix(row), add_special_tokens=True)['input_ids'])
+            prompt_str = self._prompt_prefix(row)
+            prompt_len = len(tokenizer(prompt_str, add_special_tokens=False)['input_ids'])
             
             expert_id = row.get('expert_id', -1)
             if expert_id == 0:
-                current_max_len = self.max_lengths.get("expert_0", 1024)
+                current_max_len = self.max_lengths.get("expert_0", 512)
             else:
                 current_max_len = self.max_lengths.get("default", 512)
 
@@ -79,7 +81,7 @@ class MALoRADataset(Dataset):
                 dropped += 1  
                 continue
                 
-            row = dict(row)              
+            row = dict(row)             
             row['_prompt_len'] = prompt_len
             self.samples.append(row)
 
@@ -92,34 +94,13 @@ class MALoRADataset(Dataset):
         return len(self.samples)
 
 
-    # def _prompt_prefix(self, row):
-    #     inp = row.get('input', '').strip()
-    #     if inp:
-    #         return (
-    #             f"### Instruction:\n{row['instruction']}\n\n"
-    #             f"### Input:\n{inp}\n\n"
-    #             f"### Output:\n"
-    #         )
-    #     else:
-    #         return (
-    #             f"### Instruction:\n{row['instruction']}\n\n"
-    #             f"### Output:\n"
-    #         )
-
-    # def format_prompt(self, row):
-    #     prefix = self._prompt_prefix(row)
-    #     return f"{prefix}{row['output']}{self.tokenizer.eos_token}"
-
-
     def _prompt_prefix(self, row):
-        # Combine instruction and input into a single user message
         user_content = f"{row['instruction']}\n\nInput: {row['input']}".strip() if row.get('input') else row['instruction']
         
         messages = [
             {"role": "user", "content": user_content}
         ]
         
-        # tokenize=False returns formatted string; add_generation_prompt=True appends assistant header
         return self.tokenizer.apply_chat_template(
             messages, 
             tokenize=False, 
@@ -134,7 +115,6 @@ class MALoRADataset(Dataset):
             {"role": "assistant", "content": row['output']}
         ]
         
-        # Formats complete conversation including the assistant's response and <|eot_id|>
         return self.tokenizer.apply_chat_template(
             messages, 
             tokenize=False, 
@@ -146,16 +126,19 @@ class MALoRADataset(Dataset):
         row = self.samples[idx]
         full_text = self.format_prompt(row)
 
-        
         expert_id = row.get('expert_id', -1)
         if expert_id == 0:
-            current_max_len = self.max_lengths.get("expert_0", 1024)
+            current_max_len = self.max_lengths.get("expert_0", 512)
         else:
             current_max_len = self.max_lengths.get("default", 512)
 
         encoded = self.tokenizer(
-            full_text, max_length=current_max_len,
-            truncation=True, padding='max_length', return_tensors='pt'
+            full_text, 
+            max_length=current_max_len,
+            truncation=True, 
+            padding='max_length', 
+            return_tensors='pt',
+            add_special_tokens=False  # Chat template already added <|begin_of_text|>
         )
 
         prompt_len = min(row['_prompt_len'], current_max_len)
