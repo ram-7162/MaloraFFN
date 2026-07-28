@@ -4,7 +4,6 @@ import json
 import random
 import bitsandbytes as bnb
 from src.Layers import updating_layers
-from src.dataset import get_dataloaders
 from src.model import build_model_and_tokenizer
 from src.MaloraLayer import MALoRADownProjLayer, DenseLoRADownProjLayer, SymmetricMoEDownProjLayer
 from src.Router import TopKGatingRouter
@@ -130,6 +129,38 @@ def run_validation(model, val_dataloader, device):
     return total_task / n, total_aux / n
 
 
+def get_dataloaders(tokenizer, batch_size=BATCH_SIZE, max_lengths=MAX_LENGTHS,
+                    seed=SEED, samples_per_expert=None):
+
+    subset = load_jsonl('data/final_data.jsonl')
+
+    random.Random(seed).shuffle(subset)
+    n_val = int(len(subset) * 0.1)
+    val_samples, train_samples = subset[:n_val], subset[n_val:]
+    
+
+    if samples_per_expert is not None:
+        capped_train = {}
+        for row in train_samples:
+            capped_train.setdefault(row['expert_id'], []).append(row)
+        train_samples = [r for rows in capped_train.values() for r in rows[:samples_per_expert]]
+
+        capped_val = {}
+        for row in val_samples:
+            capped_val.setdefault(row['expert_id'], []).append(row)
+        val_samples = [r for rows in capped_val.values() for r in rows[:3]]
+
+    train_ds = MALoRADataset(train_samples, tokenizer, max_lengths)
+    val_ds   = MALoRADataset(val_samples, tokenizer, max_lengths)
+
+    print(f"\n train={len(train_samples)}  val={len(val_samples)}\n{'='*50}\n")
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader   = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    return train_loader, val_loader
+
+
 def run():
     model, tokenizer = build_model_and_tokenizer(
         r1=r1, r2=r2, alpha=alpha, n_experts=n_experts,
@@ -146,13 +177,12 @@ def run():
 
     # FIX: Pass dictionary to jsonl_paths and correct max_length parameter keyword
     train_loader, val_loader = get_dataloaders(
-        jsonl_paths=JSONL_PATHS, 
-        tokenizer=tokenizer, 
-        batch_size=BATCH_SIZE, 
-        max_length=MAX_LENGTHS, 
-        seed=SEED, 
-        samples_per_expert=SAMPLES_PER_EXPERT
-    )
+    tokenizer=tokenizer,
+    batch_size=BATCH_SIZE,
+    max_lengths=MAX_LENGTHS,  
+    seed=SEED,
+    samples_per_expert=SAMPLES_PER_EXPERT
+     )
 
     trainable_params = get_trainable_params(model)
     print(f"\nTrainable parameter count: {sum(p.numel() for p in trainable_params)}")
