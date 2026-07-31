@@ -2,6 +2,8 @@ import torch
 import warnings
 warnings.filterwarnings("ignore")
 from transformers.utils import logging
+from src.Layers import updating_layers
+
 
 logging.set_verbosity_error()
 from src.model import build_model_and_tokenizer
@@ -14,6 +16,8 @@ alpha = 16.0
 n_experts = 3
 
 CHECKPOINT = "checkpoints/epoch1_step19000.pt"
+num_layers = get_num_layers("meta-llama/Meta-Llama-3-8B-Instruct") 
+alternate_layers = list(range(0, num_layers, 2))   
 
 # Build model exactly like training
 model, tokenizer = build_model_and_tokenizer(
@@ -21,7 +25,7 @@ model, tokenizer = build_model_and_tokenizer(
     r2,
     alpha,
     n_experts,
-    layer_range=(8, 24)
+    layer_range=alternate_layers
 )
 
 # Load checkpoint
